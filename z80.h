@@ -971,6 +971,10 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 	return inst;
 }
 
+bool is_not_data_type(Type t) {
+	return (t != Data_8 && t != Data_16 && t != Data_8_Addr && t != Data_16_Addr && t != Data_8_Imm && t != Data_16_Imm);
+}
+
 void pretty_print_instruction(Instruction inst) {
 	const char *op_k_string = kind_string(inst.op_k);
 	char val1_string[40];
@@ -978,7 +982,7 @@ void pretty_print_instruction(Instruction inst) {
 	memset(val1_string, 0, sizeof(val1_string));
 	memset(val2_string, 0, sizeof(val2_string));
 
-	if (inst.type1 == None || (inst.type1 != Data_8 && inst.type1 != Data_16 && inst.type1 != Data_8_Addr && inst.type1 != Data_16_Addr && inst.type1 != Data_8_Imm && inst.type1 != Data_16_Imm)) {
+	if (inst.type1 == None || is_not_data_type(inst.type1)) {
 		strcpy(val1_string, type_string(inst.type1));
 	} else {
 		if (inst.type1 == Data_8_Addr || inst.type1 == Data_16_Addr) {
@@ -990,7 +994,7 @@ void pretty_print_instruction(Instruction inst) {
 		}
 	}
 
-	if (inst.type2 == None || (inst.type2 != Data_8 && inst.type2 != Data_16 && inst.type2 != Data_8_Addr && inst.type2 != Data_16_Addr && inst.type2 != Data_8_Imm && inst.type2 != Data_16_Imm)) {
+	if (inst.type2 == None || is_not_data_type(inst.type2)) {
 		strcpy(val2_string, type_string(inst.type2));
 	} else {
 		if ((inst.type2 == Data_8_Addr || inst.type2 == Data_16_Addr)) {
@@ -1031,7 +1035,7 @@ Instruction parse_op(void *rom, u32 idx, bool swapped) {
 	inst = inst_lookup(op, local_rom, idx);
 
 	// Determine whether to pull data block from the buffer for val1
-	if (!(inst.type1 == None || (inst.type1 != Data_8 && inst.type1 != Data_16 && inst.type1 != Data_8_Addr && inst.type1 != Data_16_Addr && inst.type1 != Data_8_Imm && inst.type1 != Data_16_Imm))) {
+	if (!(inst.type1 == None || is_not_data_type(inst.type1))) {
 		if (inst.type1 == Data_8 || inst.type1 == Data_8_Addr || inst.type1 == Data_8_Imm) {
         	inst.val1 = local_rom[idx+1];
 			inst.full_inst = (op << 16) | (inst.val1 << 8);
@@ -1044,7 +1048,7 @@ Instruction parse_op(void *rom, u32 idx, bool swapped) {
 	}
 
 	// Determine whether to pull data block from the buffer for val2
-	if (!(inst.type2 == None || (inst.type2 != Data_8 && inst.type2 != Data_16 && inst.type2 != Data_8_Addr && inst.type2 != Data_16_Addr && inst.type2 != Data_8_Imm && inst.type2 != Data_16_Imm))) {
+	if (!(inst.type2 == None || is_not_data_type(inst.type2))) {
 		if (inst.type2 == Data_8 || inst.type2 == Data_8_Addr || inst.type2 == Data_8_Imm) {
         	inst.val2 = local_rom[idx+1];
 			inst.full_inst = (op << 16) | (inst.val2 << 8);

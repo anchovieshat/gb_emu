@@ -12,9 +12,10 @@
 #include <string.h>
 
 #include "platform.h"
-#include "z80.h"
+#include "gb.h"
 
-#define BUFFER_SIZE 300
+u8 *rom;
+GBPlatform gb_platform;
 
 @class View;
 static CVReturn GlobalDisplayLinkCallback(CVDisplayLinkRef, const CVTimeStamp*, const CVTimeStamp*, CVOptionFlags, CVOptionFlags*, void*);
@@ -23,13 +24,11 @@ static CVReturn GlobalDisplayLinkCallback(CVDisplayLinkRef, const CVTimeStamp*, 
 @public
 	CVDisplayLinkRef displayLink;
 	bool running;
+	bool broken;
 	NSRect windowRect;
 	NSRecursiveLock* appLock;
 	GLuint shader_program;
 	GLuint vao;
-	u16 height;
-	u16 width;
-	f32 ratio;
 }
 @end
 
@@ -109,7 +108,6 @@ GLint loadShader(const char *filename, GLenum shader_type) {
 
 	GLint compile_success = GL_FALSE;
 	glCompileShader(shader);
-	free(shader_source);
 
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &compile_success);
 	if (!compile_success && shader_type == GL_VERTEX_SHADER) {
@@ -121,46 +119,6 @@ GLint loadShader(const char *filename, GLenum shader_type) {
 	}
 
 	return shader;
-}
-
-int load_and_parse_gb_boot(const char *filename) {
-	FILE *rom_file = fopen(filename, "rb");
-
-	if (!rom_file) {
-		puts("Error opening BIOS!");
-		return 1;
-	}
-
-	fseek(rom_file, 0, SEEK_END);
-	u64 length = ftell(rom_file);
-	fseek(rom_file, 0, SEEK_SET);
-	u8 *rom = (u8 *)malloc(length + 1);
-	rom[length] = 0;
-
-	fread(rom, 1, length, rom_file);
-
-	puts("==========================");
-	puts("|   Parsing GB BIOS      |");
-	puts("==========================");
-
-	Instruction inst_table[BUFFER_SIZE];
-	memset(inst_table, 0, sizeof(inst_table));
-
-	u32 i = 0;
-	for (u32 idx = 0; idx < length;) {
-		Instruction inst = parse_op(rom, idx, false);
-		inst_table[i] = inst;
-		idx += inst.length;
-		i++;
-	}
-
-	u32 table_len = i;
-	for (u32 i = 0; i < table_len; i++) {
-		pretty_print_instruction(inst_table[i]);
-	}
-
-	fclose(rom_file);
-	return 1;
 }
 
 - (void) prepareOpenGL {
@@ -218,7 +176,6 @@ int load_and_parse_gb_boot(const char *filename) {
 	glBindVertexArray(vao);
 
 	GLuint pos_attr = glGetAttribLocation(shader_program, "coords");
-	//GLuint ratio_attr = glGetAttribLocation(shader_program, "ratio");
 	glEnableVertexAttribArray(pos_attr);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glVertexAttribPointer(pos_attr, 2, GL_FLOAT, GL_FALSE, 0, NULL);
@@ -322,6 +279,10 @@ int load_and_parse_gb_boot(const char *filename) {
 	[[self openGLContext] makeCurrentContext];
 	CGLLockContext((CGLContextObj)[[self openGLContext] CGLContextObj]);
 
+	if (!broken) {
+		broken = load_and_execute_inst(rom, &gb_platform);
+	}
+
 	glClearColor(0.1, 0.1, 0.1, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shader_program);
@@ -396,8 +357,6 @@ static CVReturn GlobalDisplayLinkCallback(CVDisplayLinkRef displayLink, const CV
 }
 
 int main(int argc, const char *argv[])  {
-	load_and_parse_gb_boot("gb/gb_boot.bin");
-
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
 	[NSApplication sharedApplication];
@@ -446,6 +405,10 @@ int main(int argc, const char *argv[])  {
 
 	// Show window and run event loop
 	[window orderFrontRegardless];
+
+	rom = load_gb_boot("gb/gb_boot.bin");
+	gb_platform.mem = (u8 *)malloc(0xFFFF);
+
 	[NSApp run];
 
 	[pool drain];
