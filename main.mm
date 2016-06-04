@@ -14,7 +14,6 @@
 #include "platform.h"
 #include "gb.h"
 
-u8 *rom;
 GBPlatform gb_platform;
 
 @class View;
@@ -280,7 +279,7 @@ GLint loadShader(const char *filename, GLenum shader_type) {
 	CGLLockContext((CGLContextObj)[[self openGLContext] CGLContextObj]);
 
 	if (!broken) {
-		broken = load_and_execute_inst(rom, &gb_platform);
+		broken = load_and_execute_inst(&gb_platform);
 	}
 
 	glClearColor(0.1, 0.1, 0.1, 1.0);
@@ -406,8 +405,14 @@ int main(int argc, const char *argv[])  {
 	// Show window and run event loop
 	[window orderFrontRegardless];
 
-	rom = load_gb_boot("gb/gb_boot.bin");
+	gb_platform.rom = load_gb_rom("gb/pkmn.gbc");
 	gb_platform.mem = (u8 *)malloc(0xFFFF);
+	gb_platform.sp = 0xFFFE;
+	gb_platform.pc = 0x100;
+	gb_platform.zero = true;
+	gb_platform.half_carry = true;
+	gb_platform.carry = true;
+	gb_platform.lcd_state = 0x80;
 
 	[NSApp run];
 

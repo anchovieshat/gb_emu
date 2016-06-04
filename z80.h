@@ -90,6 +90,14 @@ typedef enum Type {
 	RelDe,
 	RelHl,
 	Af,
+	Rst_00,
+	Rst_08,
+	Rst_10,
+	Rst_18,
+	Rst_20,
+	Rst_28,
+	Rst_30,
+	Rst_38,
 	None,
 } Type;
 
@@ -212,6 +220,30 @@ char *type_string(Type t) {
 		} break;
 		case Af: {
 			return "Af";
+		} break;
+		case Rst_00: {
+			return "0x00";
+		} break;
+		case Rst_08: {
+			return "0x08";
+		} break;
+		case Rst_10: {
+			return "0x10";
+		} break;
+		case Rst_18: {
+			return "0x18";
+		} break;
+		case Rst_20: {
+			return "0x20";
+		} break;
+		case Rst_28: {
+			return "0x28";
+		} break;
+		case Rst_30: {
+			return "0x30";
+		} break;
+		case Rst_38: {
+			return "0x38";
 		} break;
 		default: {
 			return "None";
@@ -425,6 +457,11 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 				val1 = A;
 				val2 = RelBc;
 			} break;
+			case 0xB: {
+				op_k = Dec;
+				val1 = Bc;
+				val2 = Data_16;
+			} break;
 			case 0xC: {
 				op_k = Inc;
 				val1 = C;
@@ -579,6 +616,11 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 				op_k = Dec;
 				val1 = RelHl;
 			} break;
+			case 0x36: {
+				op_k = Ld;
+				val1 = RelHl;
+				val2 = Data_8;
+			} break;
 			case 0x38: {
 				op_k = Jr;
 				val1 = Ec;
@@ -602,6 +644,11 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 				val1 = A;
 				val2 = Data_8;
 			} break;
+			case 0x46: {
+				op_k = Ld;
+				val1 = B;
+				val2 = RelHl;
+			} break;
 			case 0x47: {
 				op_k = Ld;
 				val1 = B;
@@ -612,10 +659,70 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 				val1 = C;
 				val2 = A;
 			} break;
+			case 0x52: {
+				op_k = Ld;
+				val1 = D;
+				val2 = D;
+			} break;
+			case 0x53: {
+				op_k = Ld;
+				val1 = D;
+				val2 = E;
+			} break;
+			case 0x54: {
+				op_k = Ld;
+				val1 = D;
+				val2 = H;
+			} break;
+			case 0x55: {
+				op_k = Ld;
+				val1 = D;
+				val2 = L;
+			} break;
+			case 0x56: {
+				op_k = Ld;
+				val1 = D;
+				val2 = RelHl;
+			} break;
 			case 0x57: {
 				op_k = Ld;
 				val1 = D;
 				val2 = A;
+			} break;
+			case 0x58: {
+				op_k = Ld;
+				val1 = E;
+				val2 = B;
+			} break;
+			case 0x59: {
+				op_k = Ld;
+				val1 = E;
+				val2 = C;
+			} break;
+			case 0x5A: {
+				op_k = Ld;
+				val1 = E;
+				val2 = D;
+			} break;
+			case 0x5B: {
+				op_k = Ld;
+				val1 = E;
+				val2 = E;
+			} break;
+			case 0x5C: {
+				op_k = Ld;
+				val1 = E;
+				val2 = H;
+			} break;
+			case 0x5D: {
+				op_k = Ld;
+				val1 = E;
+				val2 = L;
+			} break;
+			case 0x5E: {
+				op_k = Ld;
+				val1 = E;
+				val2 = RelHl;
 			} break;
 			case 0x5F: {
 				op_k = Ld;
@@ -626,6 +733,11 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 				op_k = Ld;
 				val1 = H;
 				val2 = A;
+			} break;
+			case 0x6B: {
+				op_k = Ld;
+				val1 = L;
+				val2 = E;
 			} break;
 			case 0x6F: {
 				op_k = Ld;
@@ -820,6 +932,38 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 				val1 = A;
 				val2 = RelHl;
 			} break;
+			case 0xA0: {
+				op_k = And;
+				val1 = B;
+			} break;
+			case 0xA1: {
+				op_k = And;
+				val1 = C;
+			} break;
+			case 0xA2: {
+				op_k = And;
+				val1 = D;
+			} break;
+			case 0xA3: {
+				op_k = And;
+				val1 = E;
+			} break;
+			case 0xA4: {
+				op_k = And;
+				val1 = H;
+			} break;
+			case 0xA5: {
+				op_k = And;
+				val1 = L;
+			} break;
+			case 0xA6: {
+				op_k = And;
+				val1 = RelHl;
+			} break;
+			case 0xA7: {
+				op_k = And;
+				val1 = A;
+			} break;
 			case 0xAF: {
 				op_k = Xor;
 				val1 = A;
@@ -856,13 +1000,25 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 				op_k = Cp;
 				val1 = RelHl;
 			} break;
+			case 0xC0: {
+				op_k = Ret;
+				val1 = Nz;
+			} break;
 			case 0xC1: {
 				op_k = Pop;
 				val1 = Bc;
 			} break;
+			case 0xC3: {
+				op_k = Jp;
+				val1 = Data_16;
+			} break;
 			case 0xC5: {
 				op_k = Push;
 				val1 = Bc;
+			} break;
+			case 0xC8: {
+				op_k = Ret;
+				val1 = Ez;
 			} break;
 			case 0xCB: {
 				// Special case LONG opcodes
@@ -895,10 +1051,19 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 						op_k = Rl;
 						val1 = RelHl;
 					} break;
+					case 0x3F: {
+						op_k = Srl;
+						val1 = A;
+					} break;
 					case 0x7C: {
 						op_k = Bit;
 						val1 = Seven;
 						val2 = H;
+					} break;
+					case 0x87: {
+						op_k = Res;
+						val1 = Zero;
+						val2 = A;
 					} break;
 				}
 				inst_len += 1;
@@ -914,6 +1079,10 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 			case 0xD5: {
 				op_k = Push;
 				val1 = De;
+			} break;
+			case 0xD6: {
+				op_k = Sub;
+				val1 = Data_8;
 			} break;
 			case 0xE0: {
 				op_k = Ld;
@@ -933,6 +1102,10 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 				op_k = Push;
 				val1 = Hl;
 			} break;
+			case 0xE6: {
+				op_k = And;
+				val1 = Data_8;
+			} break;
 			case 0xE8: {
 				op_k = Add;
 				val1 = Sp;
@@ -942,6 +1115,10 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 				op_k = Ld;
 				val1 = Data_16_Imm;
 				val2 = A;
+			} break;
+			case 0xEF: {
+				op_k = Rst;
+				val1 = Rst_00;
 			} break;
 			case 0xF0: {
 				op_k = Ld;
@@ -956,9 +1133,18 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 				op_k = Push;
 				val1 = Af;
 			} break;
+			case 0xFA: {
+				op_k = Ld;
+				val1 = A;
+				val2 = Data_16_Imm;
+			} break;
 			case 0xFE: {
 				op_k = Cp;
 				val1 = Data_8;
+			} break;
+			case 0xFF: {
+				op_k = Rst;
+				val1 = Rst_38;
 			} break;
 		}
 	}
@@ -975,7 +1161,11 @@ bool is_not_data_type(Type t) {
 	return (t != Data_8 && t != Data_16 && t != Data_8_Addr && t != Data_16_Addr && t != Data_8_Imm && t != Data_16_Imm);
 }
 
-void pretty_print_instruction(Instruction inst) {
+void print_instruction(u32 pc, Instruction inst) {
+	printf("0x%x | 0x%x\n", pc, inst.full_inst);
+}
+
+void pretty_print_instruction(u32 pc, Instruction inst) {
 	const char *op_k_string = kind_string(inst.op_k);
 	char val1_string[40];
 	char val2_string[40];
@@ -984,6 +1174,8 @@ void pretty_print_instruction(Instruction inst) {
 
 	if (inst.type1 == None || is_not_data_type(inst.type1)) {
 		strcpy(val1_string, type_string(inst.type1));
+	} else if (inst.op_k == Jr) {
+		sprintf(val1_string, "0x%x", pc + inst.length + (i8)inst.val1);
 	} else {
 		if (inst.type1 == Data_8_Addr || inst.type1 == Data_16_Addr) {
 			sprintf(val1_string, "(FF00+0x%x)", inst.val1);
@@ -996,6 +1188,8 @@ void pretty_print_instruction(Instruction inst) {
 
 	if (inst.type2 == None || is_not_data_type(inst.type2)) {
 		strcpy(val2_string, type_string(inst.type2));
+	} else if (inst.op_k == Jr) {
+		sprintf(val2_string, "0x%x", pc + inst.length + (i8)inst.val2);
 	} else {
 		if ((inst.type2 == Data_8_Addr || inst.type2 == Data_16_Addr)) {
 			sprintf(val2_string, "(FF00+0x%x)", inst.val2);
@@ -1008,13 +1202,17 @@ void pretty_print_instruction(Instruction inst) {
 
 	// Pretty print only values that exist
 	if (inst.type1 != None && inst.type2 != None) {
-		printf("[ %s ] %s, %s\n", op_k_string, val1_string, val2_string);
+		printf("0x%x [ %s ] %s, %s\n", pc, op_k_string, val1_string, val2_string);
 	} else if (inst.type1 != None && inst.type2 == None) {
-		printf("[ %s ] %s\n", op_k_string, val1_string);
+		printf("0x%x [ %s ] %s\n", pc, op_k_string, val1_string);
 	} else if (inst.type1 == None && inst.type2 == None) {
-		printf("[ %s ]\n", op_k_string);
+		printf("0x%x [ %s ]\n", pc, op_k_string);
 	} else {
-		printf("[ERR] 0x%x", inst.full_inst);
+		printf("0x%x [ERR] 0x%x\n", pc, inst.full_inst);
+	}
+
+	if (inst.op_k == InvalidOp) {
+		printf("0x%x [ERR] 0x%x\n", pc, inst.full_inst);
 	}
 }
 
@@ -1042,22 +1240,40 @@ Instruction parse_op(void *rom, u32 idx, bool swapped) {
 			inst.length += 1;
 		} else if (inst.type1 == Data_16 || inst.type1 == Data_16_Addr || inst.type1 == Data_16_Imm) {
 			inst.val1 = (local_rom[idx+2] << 8) | local_rom[idx+1];
+			inst.full_inst = (op << 16) | inst.val1;
 			inst.length += 2;
 		}
-		inst.full_inst = (op << 16) | inst.val1;
 	}
 
 	// Determine whether to pull data block from the buffer for val2
 	if (!(inst.type2 == None || is_not_data_type(inst.type2))) {
 		if (inst.type2 == Data_8 || inst.type2 == Data_8_Addr || inst.type2 == Data_8_Imm) {
-        	inst.val2 = local_rom[idx+1];
-			inst.full_inst = (op << 16) | (inst.val2 << 8);
+			inst.val2 = local_rom[idx+1];
+			inst.full_inst = (op << 8) | inst.val2;
 			inst.length += 1;
 		} else if (inst.type2 == Data_16 || inst.type2 == Data_16_Addr || inst.type2 == Data_16_Imm) {
 			inst.val2 = (local_rom[idx+2] << 8) | local_rom[idx+1];
+			inst.full_inst = (op << 16) | inst.val2;
 			inst.length += 2;
 		}
-		inst.full_inst = (op << 16) | inst.val2;
+	}
+
+	if (op == 0xCB) {
+		if (inst.op_k == Bit) {
+			inst.val1 = local_rom[idx+1];
+			inst.full_inst = (op << 8) | inst.val1;
+		} else if (inst.op_k == Rl) {
+			inst.val1 = local_rom[idx+1];
+			inst.full_inst = (op << 8) | inst.val1;
+		} else if (inst.op_k == Srl) {
+			inst.val1 = local_rom[idx+1];
+			inst.full_inst = (op << 8) | inst.val1;
+		} else if (inst.op_k == Res) {
+			inst.val1 = local_rom[idx+1];
+			inst.full_inst = (op << 8) | inst.val1;
+		} else {
+			printf("CB FALLTHROUGH: 0xcb%x\n", local_rom[idx+1]);
+		}
 	}
 
 	// Set instruction to the current op if nothing was set
