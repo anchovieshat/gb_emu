@@ -63,6 +63,7 @@ typedef struct GBPlatform {
     bool interrupts;
 
     bool debug_print;
+    bool call_trace;
 
     u8 *mem;
     u8 *vmem;
@@ -280,7 +281,9 @@ void gb_load(Instruction inst, GBPlatform *gb) {
                 gb->hl = inst.val2;
             } break;
             case RelHl: {
-                gb->mem[gb->hl] = inst.val2;
+                gb->mem[gb->hl] = (inst.val2 << 8) >> 8;
+                gb->mem[gb->hl+1] = inst.val2 >> 8;
+                //printf("[MEM-WRITE @ 0x%x]: %d, wrote: %d\n", gb->hl, inst.val2, gb->mem[gb->hl+1] << 8 | gb->mem[gb->hl]);
             } break;
             default: {
                 puts("[LOAD-data] nope");
@@ -517,6 +520,13 @@ void gb_and(Instruction inst, GBPlatform *gb) {
                 gb->zero = true;
             }
         } break;
+        case D: {
+            gb->a = gb->a & gb->d;
+
+            if (gb->a == 0) {
+                gb->zero = true;
+            }
+        } break;
         case Data_8: {
             gb->a = gb->a & inst.val1;
 
@@ -701,11 +711,11 @@ void gb_jump(Instruction inst, GBPlatform *gb) {
 }
 
 void gb_call(Instruction inst, GBPlatform *gb) {
-    if (inst.val1 == 0x67ED) {
+    /*if (inst.val1 == 0x67ED) {
         gb->tick_speed = 1;
         gb->debug_print = true;
         pretty_print_instruction(gb->pc, inst);
-    }
+    }*/
     switch (inst.op_k) {
         case Call: {
             gb->pc += inst.length;
@@ -715,7 +725,9 @@ void gb_call(Instruction inst, GBPlatform *gb) {
 
             gb->sp -= 2;
 
-            printf("CALL to 0x%x from 0x%x\n", inst.val1, gb->pc);
+            if (gb->call_trace) {
+                printf("CALL to 0x%x from 0x%x\n", inst.val1, gb->pc);
+            }
             gb->pc = inst.val1;
 
         } break;
@@ -793,21 +805,25 @@ void gb_ret(Instruction inst, GBPlatform *gb) {
         if (inst.type1 == Ez && gb->zero) {
             gb->sp += 2;
             u16 ret_addr = gb->mem[gb->sp-1] << 8 | gb->mem[gb->sp];
-            printf("RET to 0x%x from 0x%x\n", ret_addr, gb->pc);
+            if (gb->call_trace) {
+                printf("RET to 0x%x from 0x%x\n", ret_addr, gb->pc);
+            }
 
             gb->pc = ret_addr;
         } else if (inst.type1 == Ez && !gb->zero) {
             gb->sp += 2;
             u16 ret_addr = gb->mem[gb->sp-1] << 8 | gb->mem[gb->sp];
-            printf("RET to 0x%x from 0x%x\n", ret_addr, gb->pc);
-
+            if (gb->call_trace) {
+                printf("RET to 0x%x from 0x%x\n", ret_addr, gb->pc);
+            }
             gb->pc = ret_addr;
         }
     } else {
         gb->sp += 2;
         u16 ret_addr = gb->mem[gb->sp-1] << 8 | gb->mem[gb->sp];
-        printf("RET to 0x%x from 0x%x\n", ret_addr, gb->pc);
-
+        if (gb->call_trace) {
+            printf("RET to 0x%x from 0x%x\n", ret_addr, gb->pc);
+        }
         gb->pc = ret_addr;
     }
 }
@@ -1139,8 +1155,8 @@ bool load_and_execute_inst(GBPlatform *gb) {
     Instruction inst = parse_op(gb->rom, gb->pc, false);
     if (gb->debug_print) {
         pretty_print_instruction(gb->pc, inst);
-        print_state(gb);
-        printf("op: 0x%x\n", inst.op);
+//        print_state(gb);
+//        printf("op: 0x%x\n", inst.op);
     }
 
     bool no_inc = false;

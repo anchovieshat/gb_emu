@@ -431,7 +431,8 @@ int main(int argc, const char *argv[])  {
 	gb_platform.carry = true;
 	gb_platform.lcd_control = 0x80;
 	gb_platform.lcd_mode = HBlank_Mode;
-	gb_platform.tick_speed = 1000;
+	gb_platform.tick_speed = 1;
+	gb_platform.debug_print = true;
 
 	[NSApp run];
 
