@@ -184,6 +184,8 @@ GLint loadShader(const char *filename, GLenum shader_type) {
 
 	glViewport(0, 0, windowRect.size.width, windowRect.size.height);
 
+
+
 	CGLUnlockContext((CGLContextObj)[[self openGLContext] CGLContextObj]);
 	[appLock unlock];
 
@@ -278,8 +280,17 @@ GLint loadShader(const char *filename, GLenum shader_type) {
 	[[self openGLContext] makeCurrentContext];
 	CGLLockContext((CGLContextObj)[[self openGLContext] CGLContextObj]);
 
+
+	for (u16 i = 0; i < gb_platform.tick_speed && !broken; i++) {
+		if (!broken) {
+			broken = load_and_execute_inst(&gb_platform);
+		}
+		if (!broken) {
+			broken = update_screen(&gb_platform);
+		}
+	}
 	if (!broken) {
-		broken = load_and_execute_inst(&gb_platform);
+		//printf("%d\n", gb_platform.scanline);
 	}
 
 	glClearColor(0.1, 0.1, 0.1, 1.0);
@@ -407,12 +418,20 @@ int main(int argc, const char *argv[])  {
 
 	gb_platform.rom = load_gb_rom("gb/pkmn.gbc");
 	gb_platform.mem = (u8 *)malloc(0xFFFF);
+	gb_platform.vmem = (u8 *)malloc(160 * 144 * 4);
+	memset(gb_platform.vmem, 255, VMEM_SIZE);
+	gb_platform.af = 0x01B0;
+	gb_platform.bc = 0x0013;
+	gb_platform.de = 0x00D8;
+	gb_platform.hl = 0x014D;
 	gb_platform.sp = 0xFFFE;
 	gb_platform.pc = 0x100;
 	gb_platform.zero = true;
 	gb_platform.half_carry = true;
 	gb_platform.carry = true;
-	gb_platform.lcd_state = 0x80;
+	gb_platform.lcd_control = 0x80;
+	gb_platform.lcd_mode = HBlank_Mode;
+	gb_platform.tick_speed = 1000;
 
 	[NSApp run];
 

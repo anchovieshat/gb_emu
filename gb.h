@@ -3,6 +3,15 @@
 
 #define DEBUG 0
 #define BUFFER_SIZE 300
+// 160 * 140 * 4
+#define VMEM_SIZE 92160
+
+typedef enum GBMode {
+    HBlank_Mode = 0,
+    VBlank_Mode = 1,
+    OAM_Mode = 2,
+    VRAM_Mode = 3,
+} GBMode;
 
 typedef struct GBPlatform {
     struct {
@@ -53,11 +62,67 @@ typedef struct GBPlatform {
     bool carry;
     bool interrupts;
 
+    bool debug_print;
+
     u8 *mem;
+    u8 *vmem;
     u8 *rom;
+
+    u32 tick_speed;
+    u64 total_clock;
+
+    u8 interrupt_state;
+    u8 interrupt_flags;
+
+    u8 serial_data;
+    u8 serial_control;
+
+    u8 timer_modulo;
+    u8 timer_control;
+
     u8 scanline;
-    u8 lcd_state;
+    GBMode lcd_mode;
+    u64 lcd_modeclock;
+    u8 lcd_control;
+    u8 lcd_status;
+    u8 background_palette;
+    u8 sprite_palette_0;
+    u8 sprite_palette_1;
+    u8 scroll_x;
+    u8 scroll_y;
+    u8 window_x;
+    u8 window_y;
+
+    u8 sound_length_m1;
+    u8 sound_control_m1;
+    u8 sound_length_m2;
+    u8 sound_control_m2;
 } GBPlatform;
+
+const u8 inst_ticks[256] = {
+	2, 6, 4, 4, 2, 2, 4, 4, 10, 4, 4, 4, 2, 2, 4, 4, // 0x0_
+	2, 6, 4, 4, 2, 2, 4, 4,  4, 4, 4, 4, 2, 2, 4, 4, // 0x1_
+	0, 6, 4, 4, 2, 2, 4, 2,  0, 4, 4, 4, 2, 2, 4, 2, // 0x2_
+	4, 6, 4, 4, 6, 6, 6, 2,  0, 4, 4, 4, 2, 2, 4, 2, // 0x3_
+	2, 2, 2, 2, 2, 2, 4, 2,  2, 2, 2, 2, 2, 2, 4, 2, // 0x4_
+	2, 2, 2, 2, 2, 2, 4, 2,  2, 2, 2, 2, 2, 2, 4, 2, // 0x5_
+	2, 2, 2, 2, 2, 2, 4, 2,  2, 2, 2, 2, 2, 2, 4, 2, // 0x6_
+	4, 4, 4, 4, 4, 4, 2, 4,  2, 2, 2, 2, 2, 2, 4, 2, // 0x7_
+	2, 2, 2, 2, 2, 2, 4, 2,  2, 2, 2, 2, 2, 2, 4, 2, // 0x8_
+	2, 2, 2, 2, 2, 2, 4, 2,  2, 2, 2, 2, 2, 2, 4, 2, // 0x9_
+	2, 2, 2, 2, 2, 2, 4, 2,  2, 2, 2, 2, 2, 2, 4, 2, // 0xa_
+	2, 2, 2, 2, 2, 2, 4, 2,  2, 2, 2, 2, 2, 2, 4, 2, // 0xb_
+	0, 6, 0, 6, 0, 8, 4, 8,  0, 2, 0, 0, 0, 6, 4, 8, // 0xc_
+	0, 6, 0, 0, 0, 8, 4, 8,  0, 8, 0, 0, 0, 0, 4, 8, // 0xd_
+	6, 6, 4, 0, 0, 8, 4, 8,  8, 2, 8, 0, 0, 0, 4, 8, // 0xe_
+	6, 6, 4, 2, 0, 8, 4, 8,  6, 4, 8, 2, 0, 0, 4, 8  // 0xf_
+};
+
+void print_state(GBPlatform *gb) {
+    printf("a: 0x%x, bc: 0x%x, de: 0x%x, hl: 0x%x, sp: 0x%x, pc: 0x%x\n", gb->a, gb->bc, gb->de, gb->hl, gb->sp, gb->pc);
+    printf("zero: %d, sub: %d, half carry: %d, carry: %d\n", gb->zero, gb->sub, gb->half_carry, gb->carry);
+    puts("--------------------------------------------------");
+}
 
 u32 get_reg_val(GBPlatform *gb, Type t) {
     u32 ret;
@@ -116,21 +181,66 @@ void gb_load(Instruction inst, GBPlatform *gb) {
                 if (inst.type2 == Data_8_Addr) {
                     if (inst.val2 < 0x7F) {
                         switch (inst.val2) {
+                            case 0x1: {
+                                gb->a = gb->serial_data;
+                            } break;
+                            case 0x2: {
+                                gb->a = gb->serial_control;
+                            } break;
+                            case 0x6: {
+                                gb->a = gb->timer_modulo;
+                            } break;
+                            case 0x7: {
+                                gb->a = gb->timer_control;
+                            } break;
+                            case 0xF: {
+                                gb->a = gb->interrupt_flags;
+                            } break;
+                            case 0x11: {
+                                gb->a = gb->sound_length_m1;
+                            } break;
+                            case 0x12: {
+                                gb->a = gb->sound_control_m1;
+                            } break;
                             case 0x40: {
-                                gb->a = gb->lcd_state;
+                                gb->a = gb->lcd_control;
+                            } break;
+                            case 0x41: {
+                                gb->a = gb->lcd_status;
+                            } break;
+                            case 0x42: {
+                                gb->a = gb->scroll_y;
+                            } break;
+                            case 0x43: {
+                                gb->a = gb->scroll_x;
                             } break;
                             case 0x44: {
                                 gb->a = gb->scanline;
-                                gb->scanline++;
+                            } break;
+                            case 0x47: {
+                                gb->a = gb->background_palette;
+                            } break;
+                            case 0x48: {
+                                gb->a = gb->sprite_palette_0;
+                            } break;
+                            case 0x49: {
+                                gb->a = gb->sprite_palette_1;
+                            } break;
+                            case 0x4A: {
+                                gb->a = gb->window_y;
+                            } break;
+                            case 0x4B: {
+                                gb->a = gb->window_x;
                             } break;
                             default: {
-                                puts("[LOAD-IO] nope");
+                                puts("[LOAD-READ] nope");
+                                pretty_print_instruction(gb->pc, inst);
                             }
                         }
                     } else if (inst.val2 != 0xFF) {
                         gb->a = gb->mem[0xFF00+inst.val2];
                     } else {
-                        puts("[LOAD-IO] nope");
+                        gb->a = gb->interrupt_state;
                     }
                 } else {
                     gb->a = inst.val2;
@@ -167,7 +277,7 @@ void gb_load(Instruction inst, GBPlatform *gb) {
                 gb->de = inst.val2;
             } break;
             case LoHl: {
-                gb->l = inst.val2;
+                gb->hl = inst.val2;
             } break;
             case RelHl: {
                 gb->mem[gb->hl] = inst.val2;
@@ -206,13 +316,79 @@ void gb_load(Instruction inst, GBPlatform *gb) {
                 gb->hl = get_reg_val(gb, inst.type2);
             } break;
             case LoHl: {
-                gb->l = get_reg_val(gb, inst.type2);
+                gb->mem[gb->hl] = get_reg_val(gb, inst.type2);
+                gb->hl--;
+                if (gb->hl == 0) {
+                    gb->zero = true;
+                }
             } break;
             case HiHl: {
-                gb->h = get_reg_val(gb, inst.type2);
+                gb->mem[gb->hl] = get_reg_val(gb, inst.type2);
+                gb->hl++;
+                if (gb->hl == 0) {
+                    gb->zero = true;
+                }
             } break;
             case Data_8_Addr: {
-                gb->mem[0xFF00+inst.val1] = get_reg_val(gb, inst.type2);
+                if (inst.val1 < 0x7F) {
+                    switch (inst.val1) {
+                        case 0x1: {
+                            gb->serial_data = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x2: {
+                            gb->serial_control = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x6: {
+                            gb->timer_modulo = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x7: {
+                            gb->timer_control = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0xF: {
+                            gb->interrupt_flags = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x11: {
+                            gb->sound_length_m1 = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x12: {
+                            gb->sound_control_m1 = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x40: {
+                            gb->lcd_control = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x41: {
+                            gb->lcd_status = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x42: {
+                            gb->scroll_y = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x43: {
+                            gb->scroll_x = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x47: {
+                            gb->background_palette = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x48: {
+                            gb->sprite_palette_0 = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x49: {
+                            gb->sprite_palette_1 = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x4A: {
+                            gb->window_y = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x4B: {
+                            gb->window_x = get_reg_val(gb, inst.type2);
+                        } break;
+                        default: {
+                            puts("[LOAD-WRITE] nope");
+                        }
+                    }
+                } else if (inst.val2 != 0xFF) {
+                    gb->mem[0xFF00+inst.val1] = get_reg_val(gb, inst.type2);
+                } else {
+                    gb->interrupt_state = get_reg_val(gb, inst.type2);
+                }
             } break;
             case Data_16_Imm: {
                 gb->mem[inst.val1] = get_reg_val(gb, inst.type2);
@@ -224,7 +400,65 @@ void gb_load(Instruction inst, GBPlatform *gb) {
                 gb->mem[gb->de] = get_reg_val(gb, inst.type2);
             } break;
             case RelC: {
-                gb->mem[0xFF00+gb->c] = get_reg_val(gb, inst.type2);
+                if (gb->c < 0x7F) {
+                    switch (gb->c) {
+                        case 0x1: {
+                            gb->serial_data = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x2: {
+                            gb->serial_control = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x6: {
+                            gb->timer_modulo = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x7: {
+                            gb->timer_control = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0xF: {
+                            gb->interrupt_flags = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x11: {
+                            gb->sound_length_m1 = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x12: {
+                            gb->sound_control_m1 = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x40: {
+                            gb->lcd_control = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x41: {
+                            gb->lcd_status = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x42: {
+                            gb->scroll_y = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x43: {
+                            gb->scroll_x = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x47: {
+                            gb->background_palette = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x48: {
+                            gb->sprite_palette_0 = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x49: {
+                            gb->sprite_palette_1 = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x4A: {
+                            gb->window_y = get_reg_val(gb, inst.type2);
+                        } break;
+                        case 0x4B: {
+                            gb->window_x = get_reg_val(gb, inst.type2);
+                        } break;
+                        default: {
+                            puts("[LOAD-WRITE] nope");
+                        }
+                    }
+                } else if (inst.val2 != 0xFF) {
+                    gb->mem[0xFF00+gb->c] = get_reg_val(gb, inst.type2);
+                } else {
+                    gb->interrupt_state = get_reg_val(gb, inst.type2);
+                }
             } break;
             default: {
                 puts("[LOAD-reg] nope");
@@ -248,7 +482,26 @@ void gb_xor(Instruction inst, GBPlatform *gb) {
     gb->carry = false;
 }
 
+void gb_or(Instruction inst, GBPlatform *gb) {
+    gb->zero = false;
+    switch (inst.type1) {
+        case C: {
+            gb->a = gb->a | gb->c;
+            if (gb->a == 0) {
+                gb->zero = true;
+            }
+        } break;
+        default: {
+            puts("[OR] nope");
+        }
+    }
+    gb->sub = false;
+    gb->half_carry = false;
+    gb->carry = false;
+}
+
 void gb_and(Instruction inst, GBPlatform *gb) {
+    gb->zero = false;
     switch (inst.type1) {
         case A: {
             gb->a = gb->a & gb->a;
@@ -299,38 +552,65 @@ void gb_cp(Instruction inst, GBPlatform *gb) {
 }
 
 void gb_inc(Instruction inst, GBPlatform *gb) {
+    gb->zero = false;
     switch (inst.type1) {
         case A: {
             gb->a++;
+            if (gb->a == 0) {
+                gb->zero = true;
+            }
         } break;
         case B: {
             gb->b++;
+            if (gb->b == 0) {
+                gb->zero = true;
+            }
         } break;
         case C: {
             gb->c++;
+            if (gb->c == 0) {
+                gb->zero = true;
+            }
         } break;
         case D: {
             gb->d++;
+            if (gb->d == 0) {
+                gb->zero = true;
+            }
         } break;
         case E: {
             gb->e++;
+            if (gb->e == 0) {
+                gb->zero = true;
+            }
         } break;
         case H: {
             gb->h++;
+            if (gb->h == 0) {
+                gb->zero = true;
+            }
         } break;
         case Hl: {
             gb->hl++;
+            if (gb->hl == 0) {
+                gb->zero = true;
+            }
         } break;
         case De: {
             gb->de++;
+            if (gb->de == 0) {
+                gb->zero = true;
+            }
         } break;
         default: {
             puts("[INC] nope");
         }
     }
+    gb->sub = false;
 }
 
 void gb_dec(Instruction inst, GBPlatform *gb) {
+    gb->zero = false;
     switch (inst.type1) {
         case A: {
             gb->a--;
@@ -391,7 +671,7 @@ void gb_jump(Instruction inst, GBPlatform *gb) {
                     }
                 } break;
                 case Data_8: {
-                    gb->pc += (i8)inst.val2;
+                    gb->pc += (i8)inst.val1;
                 } break;
                 default: {
                     puts("[JR] nope");
@@ -399,7 +679,20 @@ void gb_jump(Instruction inst, GBPlatform *gb) {
             }
         } break;
         case Jp: {
-            gb->pc = inst.val1;
+            if (inst.type2 == Data_16) {
+                switch (inst.type1) {
+                    case Ez: {
+                        if (gb->zero) {
+                            gb->pc = inst.val2;
+                        }
+                    } break;
+                    default: {
+                        puts("[JP-CASE] nope");
+                    }
+                }
+            } else {
+                gb->pc = inst.val1;
+            }
         } break;
         default: {
             puts("[JUMP] nope");
@@ -408,6 +701,11 @@ void gb_jump(Instruction inst, GBPlatform *gb) {
 }
 
 void gb_call(Instruction inst, GBPlatform *gb) {
+    if (inst.val1 == 0x67ED) {
+        gb->tick_speed = 1;
+        gb->debug_print = true;
+        pretty_print_instruction(gb->pc, inst);
+    }
     switch (inst.op_k) {
         case Call: {
             gb->pc += inst.length;
@@ -417,7 +715,9 @@ void gb_call(Instruction inst, GBPlatform *gb) {
 
             gb->sp -= 2;
 
+            printf("CALL to 0x%x from 0x%x\n", inst.val1, gb->pc);
             gb->pc = inst.val1;
+
         } break;
         case Rst: {
             gb->pc += inst.length;
@@ -462,13 +762,20 @@ void gb_pop(Instruction inst, GBPlatform *gb) {
     switch (inst.type1) {
         case Bc: {
             gb->sp += 2;
-
             gb->bc = gb->mem[gb->sp-1] << 8 | gb->mem[gb->sp];
+        } break;
+        case De: {
+            gb->sp += 2;
+            gb->de = gb->mem[gb->sp-1] << 8 | gb->mem[gb->sp];
+        } break;
+        case Hl: {
+            gb->sp += 2;
+            gb->hl = gb->mem[gb->sp-1] << 8 | gb->mem[gb->sp];
         } break;
         case Af: {
             gb->sp += 2;
-
             gb->a = gb->mem[gb->sp-1];
+
             u8 flags = gb->mem[gb->sp];
             gb->zero = (flags << 1) >> 7;
             gb->sub = (flags << 2) >> 6;
@@ -486,20 +793,20 @@ void gb_ret(Instruction inst, GBPlatform *gb) {
         if (inst.type1 == Ez && gb->zero) {
             gb->sp += 2;
             u16 ret_addr = gb->mem[gb->sp-1] << 8 | gb->mem[gb->sp];
-            printf("RET to 0x%x\n", ret_addr);
+            printf("RET to 0x%x from 0x%x\n", ret_addr, gb->pc);
 
             gb->pc = ret_addr;
         } else if (inst.type1 == Ez && !gb->zero) {
             gb->sp += 2;
             u16 ret_addr = gb->mem[gb->sp-1] << 8 | gb->mem[gb->sp];
-            printf("RET to 0x%x\n", ret_addr);
+            printf("RET to 0x%x from 0x%x\n", ret_addr, gb->pc);
 
             gb->pc = ret_addr;
         }
     } else {
         gb->sp += 2;
         u16 ret_addr = gb->mem[gb->sp-1] << 8 | gb->mem[gb->sp];
-        printf("RET to 0x%x\n", ret_addr);
+        printf("RET to 0x%x from 0x%x\n", ret_addr, gb->pc);
 
         gb->pc = ret_addr;
     }
@@ -772,17 +1079,70 @@ u8 *load_gb_rom(const char *filename) {
     return rom;
 }
 
-void print_state(GBPlatform *gb) {
-    printf("a: 0x%x, bc: 0x%x, de: 0x%x, hl: 0x%x, sp: 0x%x, pc: 0x%x\n", gb->a, gb->bc, gb->de, gb->hl, gb->sp, gb->pc);
-    printf("zero: %d, sub: %d, half carry: %d, carry: %d\n", gb->zero, gb->sub, gb->half_carry, gb->carry);
-    puts("--------------------------------------------------");
+bool update_screen(GBPlatform *gb) {
+    bool ret = false;
+
+    static int last_clock;
+
+    gb->lcd_modeclock += gb->total_clock - last_clock;
+    last_clock = gb->total_clock;
+
+    switch (gb->lcd_mode) {
+		case HBlank_Mode: {
+			if (gb->lcd_modeclock >= 204) {
+				gb->scanline++;
+
+				if (gb->scanline == 143) {
+					gb->lcd_mode = VBlank_Mode;
+					//render vmem
+				} else {
+					gb->lcd_mode = OAM_Mode;
+				}
+
+                gb->lcd_modeclock = 0;
+			}
+		} break;
+		case VBlank_Mode: {
+			if (gb->lcd_modeclock >= 456) {
+				gb->scanline++;
+
+				if (gb->scanline > 153) {
+					gb->lcd_mode = OAM_Mode;
+					gb->scanline = 0;
+				}
+
+                gb->lcd_modeclock = 0;
+			}
+		} break;
+		case OAM_Mode: {
+			if (gb->lcd_modeclock >= 80) {
+				gb->lcd_mode = VRAM_Mode;
+                gb->lcd_modeclock = 0;
+			}
+		} break;
+		case VRAM_Mode: {
+			if (gb->lcd_modeclock >= 172) {
+				gb->lcd_mode = HBlank_Mode;
+                gb->lcd_modeclock = 0;
+				//write scanline to vmem
+			}
+		} break;
+		default: {
+			puts("not a real mode!");
+			ret = true;
+		}
+	}
+    return ret;
 }
 
-int load_and_execute_inst(GBPlatform *gb) {
+bool load_and_execute_inst(GBPlatform *gb) {
     Instruction inst = parse_op(gb->rom, gb->pc, false);
-    pretty_print_instruction(gb->pc, inst);
-    //print_state(gb);
-    //print_instruction(gb->pc, inst);
+    if (gb->debug_print) {
+        pretty_print_instruction(gb->pc, inst);
+        print_state(gb);
+        printf("op: 0x%x\n", inst.op);
+    }
+
     bool no_inc = false;
 
     u32 ret = 0;
@@ -798,6 +1158,9 @@ int load_and_execute_inst(GBPlatform *gb) {
         } break;
         case Xor: {
             gb_xor(inst, gb);
+        } break;
+        case Or: {
+            gb_or(inst, gb);
         } break;
         case And: {
             gb_and(inst, gb);
@@ -852,15 +1215,19 @@ int load_and_execute_inst(GBPlatform *gb) {
             no_inc = true;
         } break;
         case Di: { gb->interrupts = false; } break;
+        case Ei: { gb->interrupts = true; } break;
         case Nop: { } break;
         default: {
             puts("UNIMPLEMENTED!");
-            ret = 1;
+            pretty_print_instruction(gb->pc, inst);
+            ret = true;
         }
     }
 
     if (!no_inc) {
         gb->pc += inst.length;
     }
+
+    gb->total_clock += inst_ticks[inst.op];
     return ret;
 }

@@ -105,6 +105,7 @@ typedef struct Instruction {
 	Opcode op_k;
 	Type type1;
 	Type type2;
+	u8 op;
 	u16 val1;
 	u16 val2;
 	u32 full_inst;
@@ -460,7 +461,6 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 			case 0xB: {
 				op_k = Dec;
 				val1 = Bc;
-				val2 = Data_16;
 			} break;
 			case 0xC: {
 				op_k = Inc;
@@ -658,6 +658,11 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 				op_k = Ld;
 				val1 = C;
 				val2 = A;
+			} break;
+			case 0x51: {
+				op_k = Ld;
+				val1 = D;
+				val2 = C;
 			} break;
 			case 0x52: {
 				op_k = Ld;
@@ -968,9 +973,9 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 				op_k = Xor;
 				val1 = A;
 			} break;
-			case 0xBF: {
-				op_k = Cp;
-				val1 = A;
+			case 0xB1: {
+				op_k = Or;
+				val1 = C;
 			} break;
 			case 0xB8: {
 				op_k = Cp;
@@ -996,6 +1001,10 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 				op_k = Cp;
 				val1 = L;
 			} break;
+			case 0xBF: {
+				op_k = Cp;
+				val1 = A;
+			} break;
 			case 0xBE: {
 				op_k = Cp;
 				val1 = RelHl;
@@ -1019,6 +1028,11 @@ Instruction inst_lookup(u8 op, u8 *local_rom, u32 idx) {
 			case 0xC8: {
 				op_k = Ret;
 				val1 = Ez;
+			} break;
+			case 0xCA: {
+				op_k = Jp;
+				val1 = Ez;
+				val2 = Data_16;
 			} break;
 			case 0xCB: {
 				// Special case LONG opcodes
@@ -1188,8 +1202,6 @@ void pretty_print_instruction(u32 pc, Instruction inst) {
 
 	if (inst.type2 == None || is_not_data_type(inst.type2)) {
 		strcpy(val2_string, type_string(inst.type2));
-	} else if (inst.op_k == Jr) {
-		sprintf(val2_string, "0x%x", pc + inst.length + (i8)inst.val2);
 	} else {
 		if ((inst.type2 == Data_8_Addr || inst.type2 == Data_16_Addr)) {
 			sprintf(val2_string, "(FF00+0x%x)", inst.val2);
@@ -1222,6 +1234,7 @@ Instruction parse_op(void *rom, u32 idx, bool swapped) {
 	u8 op = local_rom[idx];
 
 	Instruction inst;
+	inst.op = op;
 	inst.op_k = InvalidOp;
 	inst.type1 = None;
 	inst.type2 = None;
